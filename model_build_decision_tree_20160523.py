@@ -22,6 +22,9 @@ from sklearn import metrics
 import seaborn as sns
 from sklearn.metrics import log_loss
 import matplotlib.pyplot as plt
+from sklearn.tree import export_graphviz
+from sklearn.cross_validation import cross_val_score
+
 
 shelter = pd.read_csv("C:/Users/lisa.ryan/New_Employee/General_Assembly/kaggle_shelter_animal_data/train.csv")
 
@@ -42,6 +45,9 @@ print(shelter['DateTime'].head())
 
 shelter['DateTime'] = pd.to_datetime(shelter['DateTime'])
 print(shelter['DateTime'].head())
+
+shelter['WeekdayNum'] = shelter['DateTime'].apply(lambda x: x.weekday())
+shelter['Weekday'] = shelter['DateTime'].apply(lambda x: x.strftime('%A'))
 
 
 # Re-format age info
@@ -146,6 +152,22 @@ print(shelter['sex'].head(10))
 print(shelter['sex_type'].head(10))
 
 
+# Create pure bred flag
+def pure_bred(z):
+    has_slash = z.find("/")
+    if (z[-3:] == "Mix" or z[-3:] == "mix" or has_slash > -1):
+        pb = 0
+    else:
+        pb = 1
+    return pb
+
+shelter['pure_bred'] = shelter['Breed'].apply(pure_bred)
+print(shelter['pure_bred'].value_counts())
+print(shelter[shelter['pure_bred']==1]['Breed'].value_counts())
+
+
+
+
 
 # Extract the word "Mix" from the breed variable and create an indicator variable
 def clean_mix(b):
@@ -171,6 +193,8 @@ def mix_ind(c):
     
 shelter['mix_ind'] = shelter['Breed'].apply(mix_ind)
 print(shelter['mix_ind'].head(20))
+print(shelter['mix_ind'].value_counts())
+
 
 # Rename Black/Tan to make it easier to separate cross breeds from each other
 def rename_hound(d):
@@ -179,6 +203,7 @@ def rename_hound(d):
     
 shelter['better_breed_hound'] = shelter['betterBreed'].apply(rename_hound)
 print(shelter['better_breed_hound'].value_counts())
+
 
 # Separate out breeds for dogs that have two breeds listed
 def remove_slash1(c):
@@ -726,7 +751,7 @@ def add_breed_groups(breedatype):
         group = 'NON-SPORTING'
     elif breed == 'YORKSHIRE TERRIER':
         group = 'TOY'
-    elif breed == 'DOMESTIC SHORTHAIR' or breed == 'DOMESTIC MEDIUM HAIR' or breed == 'DOMESTIC LONGHAIR' or breed == 'SIAMESE' or breed == 'SHOWSHOE' or breed == 'MANX' or breed == 'MAINE COON' or breed == 'RUSSIAN BLUE':
+    elif breed == 'DOMESTIC SHORTHAIR' or breed == 'DOMESTIC MEDIUM HAIR' or breed == 'DOMESTIC LONGHAIR' or breed == 'SIAMESE':
         group = breed
     elif atype == 'Cat':
         group = 'OTHERCAT'
@@ -807,6 +832,8 @@ def has_name(name):
         name_flag = 1
     return name_flag
 
+shelter['name_flag'] = shelter['Name'].apply(has_name)
+
 
 # Quick check of dataset so far:
 #shelter.to_csv('C:/Users/lisa.ryan/New_Employee/General_Assembly/kaggle_shelter_animal_data/train1.csv')
@@ -856,6 +883,14 @@ breed_groups2 = pd.get_dummies(shelter['breed_groups2'], prefix='group2')
 print(breed_groups2.head())
 print(breed_groups2.columns)
 
+akc_breed1 = pd.get_dummies(shelter['akc_breed1'], prefix='breed1')
+print(akc_breed1.head())
+print(akc_breed1.columns)
+
+akc_breed2 = pd.get_dummies(shelter['akc_breed2'], prefix='breed2')
+print(akc_breed2.head())
+print(akc_breed2.columns)
+
 
 print(shelter.columns)
 model_build = shelter
@@ -887,6 +922,8 @@ model_build = model_build.drop('akc_breed1',axis=1)
 model_build = model_build.drop('akc_breed2',axis=1)
 model_build = model_build.drop('breed_groups1',axis=1)
 model_build = model_build.drop('breed_groups2',axis=1)
+model_build = model_build.drop('WeekdayNum',axis=1)
+model_build = model_build.drop('Weekday', axis=1)
 
 
 print(model_build.columns)
@@ -912,7 +949,7 @@ print(model_build['outcome'].value_counts())
 model_build = model_build.drop('OutcomeType',axis=1)
 model_build.columns
 
-model_build1 = pd.concat([model_build, animal_type, sex_inds, sex_type_inds, color1, color1_type, breed_groups1], axis = 1) # 0.80758467
+model_build1 = pd.concat([model_build, animal_type, sex_inds, color1, color1_type, breed_groups1], axis = 1) # 0.80758467
 model_build1 = model_build1.drop('color1_Ruddy',axis=1)
 
 
@@ -927,7 +964,7 @@ print(model_build1.columns)
 
 
 
-# Random Forest Model
+# Classification Model
 model_build1.columns
 model_build2 = model_build1.drop('outcome',axis=1)
 model_build2.columns
@@ -955,156 +992,165 @@ print(len(y_test1))
 
 
 # Build first iteration of model:
-rf_model = RandomForestClassifier(n_estimators=1000, max_depth = 20,
+dt_model = DecisionTreeClassifier(max_depth = 3,
                 criterion = "gini", min_samples_split = 50, 
-                min_samples_leaf = 10, max_features = 'auto', n_jobs = 3)
+                min_samples_leaf = 10, max_features = 'auto')
 
-rf_model_fit = rf_model.fit(X_train1, y_train1)
+dt_model_fit = dt_model.fit(X_train1, y_train1)
 
-rf_feat_imp = rf_model_fit.feature_importances_
-print(rf_feat_imp)
-print(len(rf_feat_imp))
+dt_feat_imp = dt_model_fit.feature_importances_
+print(dt_feat_imp)
+print(len(dt_feat_imp))
 
-rf_feat_imp_list = [feat_col,rf_feat_imp]
-print(rf_feat_imp_list)
+dt_feat_imp_list = [feat_col,dt_feat_imp]
+print(dt_feat_imp_list)
 
-rf_feature_importance = pd.Series(rf_feat_imp,index=feat_col)
-print(rf_feature_importance)
+dt_feature_importance = pd.Series(dt_feat_imp,index=feat_col)
+print(dt_feature_importance)
 
 
-rf_feature_importance.to_csv('C:/Users/lisa.ryan/New_Employee/General_Assembly/kaggle_shelter_animal_data/rf_feat_imp.csv')
+dt_feature_importance.to_csv('C:/Users/lisa.ryan/New_Employee/General_Assembly/kaggle_shelter_animal_data/dt_feat_imp.csv')
 
 
 
 # Validate the model using log loss, the metric used by Kaggle to judge entries:
-rf_predict = rf_model_fit.predict(X_test1)
-print(rf_predict)
+dt_predict = dt_model_fit.predict(X_test1)
+print(dt_predict)
 print(y_test1)
 
-rf_predict_proba = rf_model_fit.predict_proba(X_test1)
-print(rf_predict_proba)
+dt_predict_proba = dt_model_fit.predict_proba(X_test1)
+print(dt_predict_proba)
 print(y_test1)
 
-log_loss(y_test1,rf_predict_proba,eps=1e-15)
+log_loss(y_test1,dt_predict_proba,eps=1e-15)
 
+accuracy = dt_model_fit.score(X_test1, y_test1)
+print(accuracy)
 
-
-
-
-# Find optimal number of estimators:
-n_est_range = [200,400,500,800,1000,1200,1500,2000]
-log_loss_scores = []
-
-for est in n_est_range:
-    rf_model = RandomForestClassifier(n_estimators=est, max_depth = 20,
-                criterion = "gini", min_samples_split = 20, 
-                min_samples_leaf = 10, max_features = 'auto', n_jobs = 3)
-    rf_model_fit = rf_model.fit(X_train1, y_train1)
-    rf_predict_proba = rf_model_fit.predict_proba(X_test1)
-    log_loss_scores.append(log_loss(y_test1,rf_predict_proba,eps=1e-15))
-    
-print(log_loss_scores)
-
-plt.plot(n_est_range, log_loss_scores)
-# Use 1000
 
 
 # Find optimal tree depth
-max_depth_range = range(1,35)
+max_depth_range = range(1,60)
 log_loss_scores = []
+accuracy_list = []
+
 
 for depth in max_depth_range:
-    rf_model = RandomForestClassifier(n_estimators=1000, max_depth = depth,
-                criterion = "gini", min_samples_split = 20, 
-                min_samples_leaf = 2, max_features = 'auto', n_jobs = 3)
-    rf_model_fit = rf_model.fit(X_train1, y_train1)
-    rf_predict_proba = rf_model_fit.predict_proba(X_test1)
-    log_loss_scores.append(log_loss(y_test1,rf_predict_proba,eps=1e-15))
+    dt_model = DecisionTreeClassifier(max_depth = depth,
+                criterion = "gini", min_samples_split = 2, 
+                min_samples_leaf = 1, max_features = 'auto')
+    dt_model_fit = dt_model.fit(X_train1, y_train1)
+    dt_predict_proba = dt_model_fit.predict_proba(X_test1)
+    accuracy_list.append(dt_model_fit.score(X_test1, y_test1))
+    log_loss_scores.append(log_loss(y_test1,dt_predict_proba,eps=1e-15))
     
 print(log_loss_scores)
+print(accuracy_list)
 
 plt.plot(max_depth_range, log_loss_scores)
-# best depth is 20
+plt.plot(max_depth_range, accuracy_list)
+# best depth is 40
 
 
 
 
 # Find optimal minimum number of samples at each split
-best_samples_split = [4,6,8,10,16,20,26,30,40,50,80,100]
+best_samples_split = [2,4,6,8,10,16,20,26,30,40,50,80,100,150,200]
 log_loss_scores = []
+accuracy_list = []
 
 for split in best_samples_split:
-    rf_model = RandomForestClassifier(n_estimators=1000, max_depth = 20,
+    dt_model = DecisionTreeClassifier(max_depth = 3,
                 criterion = "gini", min_samples_split = split, 
-                min_samples_leaf = 2, max_features = 'auto', n_jobs = 3)
-    rf_model_fit = rf_model.fit(X_train1, y_train1)
-    rf_predict_proba = rf_model_fit.predict_proba(X_test1)
-    log_loss_scores.append(log_loss(y_test1,rf_predict_proba,eps=1e-15))
+                min_samples_leaf = 1, max_features = 'auto')
+    dt_model_fit = dt_model.fit(X_train1, y_train1)
+    dt_predict_proba = dt_model_fit.predict_proba(X_test1)
+    accuracy_list.append(dt_model_fit.score(X_test1, y_test1))
+    log_loss_scores.append(log_loss(y_test1,dt_predict_proba,eps=1e-15))
     
 print(log_loss_scores)
 
 plt.plot(best_samples_split, log_loss_scores)
-# Best min samples is 20
+plt.plot(best_samples_split, accuracy_list)
+# Best min samples is 100
 
 
 
 # Find optimal number of leaf samples
-best_leaf_samples = [2,4,6,8,10,12,16,18]
+best_leaf_samples = [2,4,6,8,10,12,16,18,20,40]
 log_loss_scores = []
+accuracy_list = []
 
 for leaf in best_leaf_samples:
-    rf_model = RandomForestClassifier(n_estimators=1000, max_depth = 20,
-                criterion = "gini", min_samples_split = 20, 
-                min_samples_leaf = leaf, max_features = 'auto', n_jobs = 3)
-    rf_model_fit = rf_model.fit(X_train1, y_train1)
-    rf_predict_proba = rf_model_fit.predict_proba(X_test1)
-    log_loss_scores.append(log_loss(y_test1,rf_predict_proba,eps=1e-15))
+    dt_model = DecisionTreeClassifier(max_depth = 3,
+                criterion = "gini", min_samples_split = 50, 
+                min_samples_leaf = leaf, max_features = 'auto')
+    dt_model_fit = dt_model.fit(X_train1, y_train1)
+    dt_predict_proba = dt_model_fit.predict_proba(X_test1)
+    accuracy_list.append(dt_model_fit.score(X_test1, y_test1))
+    log_loss_scores.append(log_loss(y_test1,dt_predict_proba,eps=1e-15))
     
 print(log_loss_scores)
 
 plt.plot(best_leaf_samples, log_loss_scores)
+plt.plot(best_leaf_samples, accuracy_list)
+
 log_loss_scores
 best_leaf_samples
-# Best leaf samples is 2
+# Best leaf samples is 40
 
 
 
 
 
 
-# Build final Random Forest model with optimal settings:
-rf_model = RandomForestClassifier(n_estimators=1000, max_depth = 20,
-                criterion = "gini", min_samples_split = 20, 
-                min_samples_leaf = 2, max_features = 'auto', n_jobs = 3)
 
-rf_model_fit = rf_model.fit(X_train1, y_train1)
 
-rf_feat_imp = rf_model_fit.feature_importances_
-print(rf_feat_imp)
-print(len(rf_feat_imp))
 
-rf_feat_imp_list = [feat_col,rf_feat_imp]
-print(rf_feat_imp_list)
+# Build final Classification model with optimal settings:
+dt_model = DecisionTreeClassifier(max_depth = 40,
+                criterion = "gini", min_samples_split = 100, 
+                min_samples_leaf = 40, max_features = 'auto')
 
-rf_feature_importance = pd.Series(rf_feat_imp,index=feat_col)
-print(rf_feature_importance)
+
+dt_model = DecisionTreeClassifier(max_depth = 3,
+                criterion = "gini", min_samples_split = 100, 
+                min_samples_leaf = 40, max_features = 'auto')
+
+dt_model_fit = dt_model.fit(X_train1, y_train1)
+
+dt_feat_imp = dt_model_fit.feature_importances_
+print(dt_feat_imp)
+print(len(dt_feat_imp))
+
+dt_feat_imp_list = [feat_col,dt_feat_imp]
+print(dt_feat_imp_list)
+
+dt_feature_importance = pd.Series(dt_feat_imp,index=feat_col)
+print(dt_feature_importance)
 
 # Export feature importance to .csv file:
-rf_feature_importance.to_csv('C:/Users/lisa.ryan/New_Employee/General_Assembly/kaggle_shelter_animal_data/rf_feat_imp.csv')
+dt_feature_importance.to_csv('C:/Users/lisa.ryan/New_Employee/General_Assembly/kaggle_shelter_animal_data/dt_feat_imp.csv')
 
 
 
-rf_predict_proba = rf_model_fit.predict_proba(X_test1)
-log_loss(y_test1,rf_predict_proba,eps=1e-15)
-print(rf_predict_proba)
+dt_predict_proba = dt_model_fit.predict_proba(X_test1)
+log_loss(y_test1,dt_predict_proba,eps=1e-15)
+print(dt_predict_proba)
 print(y_test1)
 
-rf_predict = rf_model_fit.predict(X_test1)
-print metrics.confusion_matrix(y_test1, rf_predict)
+dt_predict = dt_model_fit.predict(X_test1)
+print metrics.confusion_matrix(y_test1, dt_predict)
 print(len(y_test1))
 
-accuracy = rf_model_fit.score(X_test1, y_test1)
+accuracy = dt_model_fit.score(X_test1, y_test1)
 print(accuracy)
+
+
+dot_data = StringIO()
+tree.export_graphviz(dt_model_fit, out_file = dot_data)
+graph = pydot.graph_from_dot_data(dot_data.getvalue())
+graph.write_pdf("C:\Users\lisa.ryan\New_Employee\General_Assembly\kaggle_shelter_animal_data\decision_tree1.pdf")
 
 
 print(shelter['OutcomeType'].value_counts())
@@ -1128,6 +1174,105 @@ def outcome_to_num(out):
     elif out == 'Died':
         outcome = 5
     return outcome
+
+
+
+
+# Create model with top variables only:
+model_build_less_vars = pd.concat([model_build1['betterAge'], model_build1['Cat'], model_build1['Dog'], model_build1['name_flag'], model_build1['Female'], model_build1['Male'], model_build1['group1_PIT BULL']], axis = 1)
+print(model_build_less_vars.head())
+
+model_build_less_vars.columns
+feat_col = model_build_less_vars.columns
+print(feat_col)
+print(len(feat_col))
+
+X_train, X_test, y_train, y_test = cross_validation.train_test_split(model_build_less_vars, model_build1.outcome, test_size = 0.35)
+
+print(X_train)
+print(X_test)
+print(y_train)
+print(y_test)
+
+X_train1 = X_train.as_matrix(X_train.columns)
+X_test1 = X_test.as_matrix(X_test.columns)
+y_train1 = y_train.as_matrix().ravel()
+y_test1 = y_test.as_matrix().ravel()
+
+print(len(X_train1))
+print(len(X_test1))
+print(len(y_train1))
+print(len(y_test1))
+
+
+dt_model = DecisionTreeClassifier(max_depth = 2,
+                criterion = "gini", min_samples_split = 100, 
+                min_samples_leaf = 40, max_features = 'auto')
+
+dt_model_fit = dt_model.fit(X_train1, y_train1)
+
+
+dt_predict = dt_model_fit.predict(X_test1)
+print metrics.confusion_matrix(y_test1, dt_predict)
+print(len(y_test1))
+
+
+# null accuracy:
+y_test_binary1 = np.where(y_test==1, 1, 0)
+y_test_binary2 = np.where(y_test==2, 1, 0)
+y_test_binary3 = np.where(y_test==3, 1, 0)
+y_test_binary4 = np.where(y_test==4, 1, 0)
+y_test_binary5 = np.where(y_test==5, 1, 0)
+print(max(y_test_binary1.mean(), y_test_binary2.mean(), y_test_binary3.mean(), y_test_binary4.mean(), y_test_binary5.mean()))
+print(shelter['OutcomeType'].value_counts())
+print(len(shelter))
+
+
+# accuracy:
+accuracy = dt_model_fit.score(X_test1, y_test1)
+print(accuracy)
+
+# sensitivity:
+conf_matrix = metrics.confusion_matrix(y_test1, dt_predict)
+conf_matrix
+print(conf_matrix[0,0]/float(conf_matrix[0,0]+conf_matrix[0,1]+conf_matrix[0,2]+conf_matrix[0,3]+conf_matrix[0,4]))
+print(conf_matrix[1,1]/float(conf_matrix[1,1]+conf_matrix[1,0]+conf_matrix[1,2]+conf_matrix[1,3]+conf_matrix[1,4]))
+print(conf_matrix[2,2]/float(conf_matrix[2,2]+conf_matrix[2,0]+conf_matrix[2,1]+conf_matrix[2,3]+conf_matrix[2,4]))
+print(conf_matrix[3,3]/float(conf_matrix[3,3]+conf_matrix[3,0]+conf_matrix[3,1]+conf_matrix[3,2]+conf_matrix[3,4]))
+print(conf_matrix[4,4]/float(conf_matrix[4,4]+conf_matrix[4,0]+conf_matrix[4,1]+conf_matrix[4,2]+conf_matrix[4,3]))
+
+# specificity:
+conf_matrix = metrics.confusion_matrix(y_test1, dt_predict)
+conf_matrix
+TN1 = (conf_matrix[1,1]+conf_matrix[1,2]+conf_matrix[1,3]+conf_matrix[1,4]+conf_matrix[2,1]+conf_matrix[2,2]+conf_matrix[2,3]+conf_matrix[2,4]+conf_matrix[3,1]+conf_matrix[3,2]+conf_matrix[3,3]+conf_matrix[3,4]+conf_matrix[4,1]+conf_matrix[4,2]+conf_matrix[4,3]+conf_matrix[4,4])
+FP1 = (conf_matrix[1,0]+conf_matrix[2,0]+conf_matrix[3,0]+conf_matrix[4,0])
+TN2 = (conf_matrix[0,0]+conf_matrix[0,2]+conf_matrix[0,3]+conf_matrix[0,4]+conf_matrix[2,0]+conf_matrix[2,2]+conf_matrix[2,3]+conf_matrix[2,4]+conf_matrix[3,0]+conf_matrix[3,2]+conf_matrix[3,3]+conf_matrix[3,4]+conf_matrix[4,0]+conf_matrix[4,2]+conf_matrix[4,3]+conf_matrix[4,4])
+FP2 = (conf_matrix[0,1]+conf_matrix[2,1]+conf_matrix[3,1]+conf_matrix[4,1])
+TN3 = (conf_matrix[0,0]+conf_matrix[0,1]+conf_matrix[0,3]+conf_matrix[0,4]+conf_matrix[1,0]+conf_matrix[1,1]+conf_matrix[1,3]+conf_matrix[1,4]+conf_matrix[3,0]+conf_matrix[3,1]+conf_matrix[3,3]+conf_matrix[3,4]+conf_matrix[4,0]+conf_matrix[4,1]+conf_matrix[4,3]+conf_matrix[4,4])
+FP3 = (conf_matrix[0,2]+conf_matrix[1,2]+conf_matrix[3,2]+conf_matrix[4,2])
+TN4 = (conf_matrix[0,0]+conf_matrix[0,1]+conf_matrix[0,2]+conf_matrix[0,4]+conf_matrix[1,0]+conf_matrix[1,1]+conf_matrix[1,2]+conf_matrix[1,4]+conf_matrix[2,0]+conf_matrix[2,1]+conf_matrix[2,2]+conf_matrix[2,4]+conf_matrix[4,0]+conf_matrix[4,1]+conf_matrix[4,2]+conf_matrix[4,4])
+FP4 = (conf_matrix[0,3]+conf_matrix[1,3]+conf_matrix[2,3]+conf_matrix[4,3])
+TN5 = (conf_matrix[0,0]+conf_matrix[0,1]+conf_matrix[0,2]+conf_matrix[0,3]+conf_matrix[1,0]+conf_matrix[1,1]+conf_matrix[1,2]+conf_matrix[1,3]+conf_matrix[2,0]+conf_matrix[2,1]+conf_matrix[2,2]+conf_matrix[2,3]+conf_matrix[3,0]+conf_matrix[3,1]+conf_matrix[3,2]+conf_matrix[3,3])
+FP5 = (conf_matrix[0,4]+conf_matrix[1,4]+conf_matrix[2,4]+conf_matrix[3,4])
+
+
+print(TN1/float(TN1+FP1))
+print(TN2/float(TN2+FP2))
+print(TN3/float(TN3+FP3))
+print(TN4/float(TN4+FP4))
+print(TN5/float(TN5+FP5))
+
+
+dt_predict_proba = dt_model_fit.predict_proba(X_test1)
+print(dt_predict_proba)
+print(y_test1)
+
+log_loss(y_test1,dt_predict_proba,eps=1e-15)
+
+crossval = cross_val_score(dt_model,X_train,y_train,scoring="accuracy",cv=5)
+crossval
+
+export_graphviz(dt_model_fit, out_file = 'C:\Users\lisa.ryan\New_Employee\General_Assembly\kaggle_shelter_animal_data\decision_tree.dot', feature_names=feat_col)
 
 
 
