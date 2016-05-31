@@ -1066,3 +1066,77 @@ crossval
 
 
 
+
+# logistic regression with 2 outcome classes
+def outcome_to_num(out):
+    if out == 'Adoption' or out == 'Transfer' or out == 'Return_to_owner':
+        outcome = 0
+    elif out == 'Euthanasia' or out == 'Died':
+        outcome = 1
+    return outcome
+
+model_build['outcome'] = model_build['OutcomeType'].apply(outcome_to_num)
+print(model_build['outcome'].value_counts())
+
+model_build = model_build.drop('OutcomeType',axis=1)
+model_build.columns
+
+model_build1 = pd.concat([model_build, animal_type, sex_inds, color1, color1_type, breed_groups1], axis = 1) # 0.80758467
+model_build1 = model_build1.drop('color1_Ruddy',axis=1)
+
+
+model_build1.columns
+print(model_build1.head(10))
+
+print(model_build1.head(10))
+print(model_build1.columns)
+
+
+
+model_build1.columns
+model_build2 = model_build1.drop('outcome',axis=1)
+model_build2.columns
+feat_col = model_build2.columns
+print(feat_col)
+print(len(feat_col))
+
+X_train, X_test, y_train, y_test = cross_validation.train_test_split(model_build2, model_build1.outcome, test_size = 0.35)
+
+print(X_train)
+print(X_test)
+print(y_train)
+print(y_test)
+
+X_train1 = X_train.as_matrix(X_train.columns)
+X_test1 = X_test.as_matrix(X_test.columns)
+y_train1 = y_train.as_matrix().ravel()
+y_test1 = y_test.as_matrix().ravel()
+
+print(len(X_train1))
+print(len(X_test1))
+print(len(y_train1))
+print(len(y_test1))
+
+
+
+logreg = LogisticRegression(C=1e9)
+
+logreg_fit = logreg.fit(X_train1, y_train1)
+
+
+
+lr_predict_proba = logreg_fit.predict_proba(X_test1)
+log_loss(y_test1,lr_predict_proba,eps=1e-15)
+print(lr_predict_proba)
+print(y_test1)
+
+lr_predict = logreg_fit.predict(X_test1)
+print metrics.confusion_matrix(y_test1, lr_predict)
+print(len(y_test1))
+
+
+accuracy = logreg_fit.score(X_test1, y_test1)
+print(accuracy)
+
+
+

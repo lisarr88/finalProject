@@ -833,6 +833,9 @@ def has_name(name):
 shelter['name_flag'] = shelter['Name'].apply(has_name)
 
 
+shelter['OutcomeSubtype'].groupby(shelter['OutcomeType']).value_counts()
+shelter[shelter['breed_groups1']=='PIT BULL']['OutcomeSubtype'].groupby(shelter['OutcomeType']).value_counts()
+
 # Quick check of dataset so far:
 #shelter.to_csv('C:/Users/lisa.ryan/New_Employee/General_Assembly/kaggle_shelter_animal_data/train1.csv')
 
